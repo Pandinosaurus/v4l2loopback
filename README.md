@@ -66,13 +66,24 @@ To build the kernel module, run:
 
 This should give you a file named "v4l2loopback.ko", which is the kernel module
 
-## BUILD AGAIN
+## Build again
 You cannot load a module built for a specific version of the kernel into another version of the kernel.
 So, if you have successfully built the module previously and have updated your kernel (and the matching headers)
 In the meantime, you really must clean the build before re-compiling the module.
 So run this *before* starting the build again:
 
     $ make clean
+
+Afterwards re-run `make` to do the actual build.
+
+## Build for a different kernel
+By default a simple `make` will (try to) build the module for the currently active kernel (as determined by `uname -r`).
+If you want to build for a different kernel, youcan do so by providing the kernel version via the `KERNELRELEASE` variable:
+
+    $ make KERNELRELEASE=6.11.7-amd64
+
+(Of course you must have the kernel-headers for the specified kernel available in the `/lib/modules/${KERNELRELEASE}/build/` directory.)
+
 
 # INSTALL
 To install the module, run "make install" (you might have to be 'root' to have
@@ -110,9 +121,16 @@ Using `sudo` use:
 
     $ sudo modprobe v4l2loopback
 
-This will create an additional video-device, e.g. /dev/video0 (the number
-depends on whether you already had video devices on your system), which can be
-fed by various programs.
+You can check which loopback devices are created by listing contents of
+`/sys/devices/virtual/video4linux` directory. E.g. if there are two
+`v4l2loopback` devices `/dev/video0` and `/dev/video3` you would get:
+
+    $ ls -1 /sys/devices/virtual/video4linux
+    video0
+    video3
+
+These devices are ready to accept contents to show.
+
 Tested feeders:
 - GStreamer-1.0: using the  "v4l2sink" element
 - Gem(>=0.93) using the "recordV4L2" plugin
@@ -210,7 +228,7 @@ or
 
     $ v4l2loopback-ctl set-caps /dev/video0 "UYVY:640x480"
 
-Please note that *GStreamer-style caps* (e.g. `video/x-raw,format=UYVY,width=640,height=480`) or no longer supported!
+Please note that *GStreamer-style caps* (e.g. `video/x-raw,format=UYVY,width=640,height=480`) are no longer supported!
 
 ## SETTING STREAM TIMEOUT
 
@@ -221,12 +239,13 @@ if the producer suddenly stopped.
 $ v4l2-ctl -d /dev/video0 -c timeout=3000
 ~~~
 
-Alternatively, you can calso provide a timeout-image, which will be displayed (instead of the NULL frames),
-if the producer doesn't send any new frames for a given period:
+_Requires GStreamer 1.0, version >= 1.16_: You can provide a timeout image,
+which will be displayed (instead of the NULL frames), if the
+producer doesn't send any new frames for a given period (in the following
+example; 3000ms):
 
 ~~~
 $ v4l2loopback-ctl set-timeout-image -t 3000 /dev/video0 service-unavailable.png
-(this currently requires GStreamer 1.0 installed)
 ~~~
 
 ## DYNAMIC DEVICE MANAGEMENT
@@ -258,7 +277,7 @@ Support:
 - >= <kbd>4.0.0</kbd>		should work
 - >= <kbd>3.0.0</kbd>		might work
 - << <kbd>3.0.0</kbd>		may work (has not been tested in ages)
-- <= <kbd>2.6.27</kbd>		will definitely NOT work
+- <= <kbd>2.6.37</kbd>		will definitely NOT work
 
 # DISTRIBUTIONS
 v4l2loopack is now (since 2010-10-13) available as a Debian-package.
@@ -268,14 +287,14 @@ This means, that it is also part of Debian-derived distributions, including
 Ubuntu (starting with natty).
 The most convenient way is to install the package "v4l2loopback-dkms":
 
-    # aptitude install v4l2loopback-dkms
+    # apt-get install v4l2loopback-dkms
 
 This should automatically build and install the module for your current kernel
 (provided you have the matching kernel-headers installed).
 Another option is to install the "v4l2loopback-source" package.
 In this case you should be able to simply do (as root):
 
-    # aptitude install v4l2loopback-source module-assistant
+    # apt-get install v4l2loopback-source module-assistant
     # module-assistant auto-install v4l2loopback-source
 
 # DKMS
@@ -304,32 +323,31 @@ dkms install -m v4l2loopback -v ${version}
 | Fedora,...         | gcc kernel-devel dkms |
 | Debian, Ubuntu,... | dkms                  |
 
+_Note_: Using this method will _NOT_ install the `v4l2loopback-ctl` tool; do so manually via
+`cd utils && make && sudo make install`.
 
 # LOAD THE MODULE AT BOOT
 
 One can avoid manually loading the module by letting systemd load the module
 at boot, by creating a file `/etc/modules-load.d/v4l2loopback.conf` with just
-the name of the module:
+the name of the module. This is especially convenient when `v4l2loopback` is installed with DKMS or with
+a package provided by your Linux distribution:
 
 ~~~
 v4l2loopback
 ~~~
 
-This is especially convenient when `v4l2loopback` is installed with DKMS or with
-a package provided by your Linux distribution.
-
 If needed, one can specify default module options by creating
-`/etc/modprobe.d/v4l2loopback.conf` in the following form:
+`/etc/modprobe.d/v4l2loopback.conf` in the following form instead:
 
 ~~~
-options v4l2loopback video_nr=3,4,7
-options v4l2loopback card_label="device number 3,the number four,the last one"
+options v4l2loopback video_nr=3,4,7 card_label="device number 3,the number four,the last one"
 ~~~
 
-One can only add one option per line. These options also become the defaults when
-manually calling `modprobe v4l2loopback`. Note that the double quotes can only
-be used at the beginning and the end of the option's value, as opposed to when
-they are specified on the command line.
+These options also become the defaults when manually calling
+`modprobe v4l2loopback`. Note that the double quotes can only be used at the
+beginning and the end of the option's value, as opposed to when they are
+specified on the command line.
 
 If your system boots with an initial ramdisk, which is the case for most
 modern distributions, you need to update this ramdisk with the settings above,
@@ -343,7 +361,7 @@ http://github.com/umlaeute/v4l2loopback/.
 
 # LICENSE/COPYING
 
-- Copyright (c) 2010-2021 IOhannes m zmoelnig
+- Copyright (c) 2010-2023 IOhannes m zmoelnig
 - Copyright (c) 2016 Gavin Qiu
 - Copyright (c) 2016 George Chriss
 - Copyright (c) 2014-2015 Tasos Sahanidis
